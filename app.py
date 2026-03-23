@@ -689,7 +689,7 @@ if page == "Executive Summary":
             "Metric": ["Total Employees","Employees Left","Active Employees",
                        "Turnover Rate","Retention Rate","Mfg. Baseline Benchmark","Avg Satisfaction"],
             "Value":  [f"{total:,}", f"{left_ct:,}", f"{stayed_ct:,}",
-                       f"{turnover}%", f"{retention}%", "~27% (2024–25 mfg. surveys, est.)", str(avg_sat)]
+                       f"{turnover}%", f"{retention}%", "~27%", str(avg_sat)]
         })
         st.dataframe(summary, hide_index=True, use_container_width=True, height=260)
 
