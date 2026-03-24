@@ -1,0 +1,1573 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import io
+
+# ─────────────────────────────────────────────
+#  PAGE CONFIG
+# ─────────────────────────────────────────────
+st.set_page_config(
+    page_title="Alpha Manufacturing | HR Retention Analytics",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ─────────────────────────────────────────────
+#  GLOBAL STYLES
+# ─────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap');
+html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
+
+[data-testid="stSidebar"] { background: #0f1b2d; border-right: 1px solid #1e3a5f; }
+[data-testid="stSidebar"] * { color: #c9d8e8 !important; }
+[data-testid="stSidebar"] .stSelectbox label,
+[data-testid="stSidebar"] .stMultiSelect label {
+    color: #7fa8cc !important; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+}
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 { color: #ffffff !important; }
+
+.main .block-container {
+    background: #f7f9fc; padding-top: 0.5rem;
+    padding-bottom: 3rem; max-width: 1400px;
+}
+
+/* ── Persistent KPI Banner ── */
+.kpi-banner {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 0.85rem 1.5rem;
+    margin-bottom: 1.4rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    border: 1px solid #eaecee;
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    flex-wrap: wrap;
+}
+.banner-item { display: flex; flex-direction: column; }
+.banner-label {
+    font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #95a5a6; margin-bottom: 0.1rem;
+}
+.banner-value { font-family: 'DM Serif Display', serif; font-size: 1.35rem; color: #1a252f; line-height: 1; }
+.banner-value.red    { color: #c0392b; }
+.banner-value.green  { color: #1e8449; }
+.banner-value.orange { color: #d35400; }
+.banner-value.blue   { color: #1a5276; }
+.banner-divider { width: 1px; height: 32px; background: #eaecee; }
+.banner-source {
+    margin-left: auto; font-size: 0.68rem; color: #bdc3c7;
+    font-style: italic; white-space: nowrap;
+}
+
+/* ── Page Header ── */
+.page-header {
+    background: linear-gradient(135deg, #0f1b2d 0%, #1a3355 60%, #1e4976 100%);
+    border-radius: 12px; padding: 1.6rem 2.5rem; margin-bottom: 1.4rem;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.page-header h1 {
+    font-family: 'DM Serif Display', serif; color: #ffffff;
+    font-size: 1.65rem; margin: 0; line-height: 1.2;
+}
+.page-header p  { color: #8db8d8; margin: 0.3rem 0 0 0; font-size: 0.83rem; font-weight: 300; }
+.page-header .badge {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px; padding: 0.35rem 1rem; color: #ffffff;
+    font-size: 0.72rem; font-weight: 500; letter-spacing: 0.05em; white-space: nowrap;
+}
+
+/* ── KPI Cards ── */
+.kpi-card {
+    background: #ffffff; border-radius: 10px; padding: 1.3rem 1.4rem;
+    border-left: 4px solid #1a5276; box-shadow: 0 2px 12px rgba(0,0,0,0.06); height: 100%;
+}
+.kpi-card.danger  { border-left-color: #c0392b; }
+.kpi-card.warning { border-left-color: #d35400; }
+.kpi-card.success { border-left-color: #1e8449; }
+.kpi-card.primary { border-left-color: #1a5276; }
+.kpi-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #7f8c8d; margin-bottom: 0.4rem; }
+.kpi-value { font-family: 'DM Serif Display', serif; font-size: 2rem; color: #1a252f; line-height: 1; margin-bottom: 0.25rem; }
+.kpi-sub   { font-size: 0.73rem; color: #95a5a6; font-weight: 400; }
+
+/* ── Section Headers ── */
+.section-title {
+    font-family: 'DM Serif Display', serif; font-size: 1.1rem; color: #1a252f;
+    margin: 0 0 0.15rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid #eaecee;
+}
+.section-sub { font-size: 0.76rem; color: #95a5a6; margin-bottom: 1rem; }
+
+/* ── Insight Box ── */
+.insight-box {
+    background: #eaf4fb; border-left: 4px solid #2980b9;
+    border-radius: 0 8px 8px 0; padding: 0.85rem 1.2rem;
+    font-size: 0.81rem; color: #1a3a52; margin-bottom: 1rem; line-height: 1.65;
+}
+.insight-box strong { color: #1a5276; }
+.insight-box.green  { background: #eafaf1; border-left-color: #1e8449; }
+.insight-box.amber  { background: #fef9e7; border-left-color: #d35400; }
+
+/* ── Data Note ── */
+.data-note {
+    background: #f8f9fa; border: 1px dashed #bdc3c7; border-radius: 6px;
+    padding: 0.6rem 1rem; font-size: 0.75rem; color: #7f8c8d;
+    margin-top: 0.4rem; line-height: 1.5;
+}
+.data-note strong { color: #566573; }
+
+/* ── Benchmark Row ── */
+.benchmark-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.5rem 0.8rem; border-radius: 6px; margin-bottom: 0.35rem;
+    background: #fff; border: 1px solid #eaecee;
+}
+.benchmark-label { font-size: 0.79rem; font-weight: 500; color: #2c3e50; }
+.benchmark-val   { font-size: 0.83rem; font-weight: 600; color: #1a5276; }
+.benchmark-status-over  { font-size: 0.7rem; background:#fdecea; color:#c0392b; padding:2px 8px; border-radius:10px; }
+.benchmark-status-under { font-size: 0.7rem; background:#eafaf1; color:#1e8449; padding:2px 8px; border-radius:10px; }
+
+/* ── Model Cards ── */
+.model-metric-card {
+    background: #ffffff; border-radius: 10px; padding: 1.2rem 1.4rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06); text-align: center; border-top: 3px solid #1a5276;
+}
+.model-metric-card.rf  { border-top-color: #1e8449; }
+.model-metric-card.xgb { border-top-color: #d35400; }
+.model-metric-card.lr  { border-top-color: #2980b9; }
+.model-metric-value { font-family: 'DM Serif Display', serif; font-size: 1.9rem; color: #1a252f; }
+.model-metric-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #7f8c8d; margin-top: 0.3rem; }
+.model-metric-model { font-size: 0.71rem; color: #2980b9; font-weight: 500; margin-top: 0.2rem; }
+
+hr { border: none; border-top: 1px solid #eaecee; margin: 1.4rem 0; }
+#MainMenu, footer, header { visibility: hidden; }
+
+.sidebar-logo { padding: 1.2rem 0 1.4rem 0; border-bottom: 1px solid #1e3a5f; margin-bottom: 1.4rem; }
+.sidebar-logo h2 { font-family: 'DM Serif Display', serif; color: #ffffff !important; font-size: 1.1rem; margin: 0; line-height: 1.3; }
+.sidebar-logo p  { color: #5d8fad !important; font-size: 0.68rem; margin: 0.2rem 0 0 0; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; }
+</style>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
+#  DATA LOADING
+# ─────────────────────────────────────────────
+@st.cache_data
+def load_data():
+    df = pd.read_csv("hr_data.csv")
+
+    def tenure_band(t):
+        if t <= 3:   return "Early (0-3 yrs)"
+        elif t <= 6: return "Mid (4-6 yrs)"
+        else:        return "Long (7+ yrs)"
+
+    def workload(h):
+        if h < 160:   return "Low (<160 hrs)"
+        elif h <= 220: return "Moderate (160-220 hrs)"
+        else:          return "High (221+ hrs)"
+
+    df["tenure_band"]    = df["time_spend_company"].apply(tenure_band)
+    df["workload_level"] = df["average_montly_hours"].apply(workload)
+
+    df["risk_score"] = (
+        (1 - df["satisfaction_level"]) * 40 +
+        df["number_project"].apply(lambda x: 30 if x <= 2 or x >= 6 else 0) +
+        df["salary"].map({"low": 20, "medium": 10, "high": 0}) +
+        df["promotion_last_5years"].apply(lambda x: 10 if x == 0 else 0)
+    ).clip(0, 100).round(1)
+
+    df["risk_tier"]      = df["risk_score"].apply(lambda x: "High" if x >= 60 else ("Medium" if x >= 35 else "Low"))
+    df["status"]         = df["left"].map({1: "Left", 0: "Active"})
+    df["promoted_label"] = df["promotion_last_5years"].map({1: "Promoted", 0: "Not Promoted"})
+    df["accident_label"] = df["Work_accident"].map({1: "Had Accident", 0: "No Accident"})
+    return df
+
+df = load_data()
+
+# ─────────────────────────────────────────────
+#  STATIC ANALYTICAL DATA (from GitHub repo)
+# ─────────────────────────────────────────────
+
+# ── Baseline: 2024-25 manufacturing industry average from HR industry surveys
+#    (FirstHR / BambooHR / Mercer cross-referenced; range 26-28%, midpoint used)
+INDUSTRY_BENCHMARK = 27.0
+
+# ── Tiered segment benchmarks
+#    Methodology: All estimates derived directionally from the 27% manufacturing
+#    baseline, adjusted using documented drivers from Mercer (2025 Turnover Survey),
+#    SHRM retention research, and BambooHR industry data.
+#    These are estimated benchmarks — clearly disclosed as assumptions.
+DEPT_BENCHMARKS = {
+    "hr":          30.0,   # Admin/HR roles: higher burnout, above-avg voluntary exits (SHRM)
+    "accounting":  30.0,   # Finance/admin: similar burnout profile to HR
+    "sales":       29.0,   # Client-facing, high-pressure: slightly above baseline
+    "support":     29.0,   # Customer-facing: similar to sales
+    "technical":   26.0,   # Technical talent: competitive market but stable roles
+    "IT":          26.0,   # IT: competitive market, but structured career paths
+    "marketing":   27.0,   # Baseline
+    "product_mng": 25.0,   # Product: structured growth paths, below baseline
+    "RandD":       22.0,   # R&D: long-tenure culture, high stability
+    "management":  20.0,   # Management: seniority = stability
+}
+
+SAL_BENCHMARKS = {
+    "low":    32.0,   # Compensation dissatisfaction: top driver of voluntary exits (Mercer)
+    "medium": 25.0,   # Moderate pay: slightly below baseline
+    "high":   14.0,   # High salary: strong retention, well below baseline
+}
+
+TENURE_BENCHMARKS = {
+    "Early (0-3 yrs)": 25.0,   # Early tenure: onboarding risk, but below mid-tenure
+    "Mid (4-6 yrs)":   30.0,   # Career stagnation window: above baseline (SHRM)
+    "Long (7+ yrs)":   10.0,   # Long tenure: strong stability, well below baseline
+}
+
+WORKLOAD_BENCHMARKS = {
+    "Low (<160 hrs)":        25.0,   # Underutilization: slightly below baseline
+    "Moderate (160-220 hrs)": 20.0,  # Healthy workload: best retention outcome
+    "High (221+ hrs)":        32.0,  # Burnout-driven exits: above baseline (SHRM)
+}
+
+PROJECT_BENCHMARKS = {
+    2: 27.0,   # Baseline — underload risk
+    3: 22.0,   # Optimal load: below baseline
+    4: 22.0,   # Optimal load: below baseline
+    5: 25.0,   # Slightly elevated
+    6: 27.0,   # Overload begins
+    7: 27.0,   # Extreme overload
+}
+
+PROMO_BENCHMARKS = {
+    "Promoted":     15.0,   # Promotion = strong retention signal (Mercer)
+    "Not Promoted": 29.0,   # Lack of advancement: top-3 voluntary exit driver (Mercer)
+}
+
+# ── Benchmark comparison table (for Page 1 panel)
+BENCHMARKS = [
+    ("Overall Turnover Rate",       "23.81%", "27.0%", "under"),
+    ("HR Dept Turnover",            "29.09%", "30.0%", "under"),
+    ("Accounting Dept Turnover",    "26.60%", "30.0%", "under"),
+    ("Sales Dept Turnover",         "24.49%", "29.0%", "under"),
+    ("Low Salary Turnover",         "29.69%", "32.0%", "under"),
+    ("Mid-Tenure Attrition",        "40.69%", "30.0%", "over"),
+    ("2-Project Assignment",        "65.62%", "27.0%", "over"),
+    ("6-Project Assignment",        "55.79%", "27.0%", "over"),
+    ("7-Project Assignment",        "100.0%", "27.0%", "over"),
+    ("High Workload Turnover",      "30.72%", "32.0%", "under"),
+    ("Low Workload Turnover",       "36.35%", "25.0%", "over"),
+    ("Moderate Workload Turnover",  "4.35%",  "20.0%", "under"),
+    ("High Salary Turnover",        "6.63%",  "14.0%", "under"),
+    ("Promoted Employee Turnover",  "5.96%",  "15.0%", "under"),
+]
+
+BENCHMARK_DISCLAIMER = (
+    "⚠️ Segment benchmarks are directional estimates derived from the 27% manufacturing "
+    "industry baseline (2024–25 HR industry surveys: FirstHR, BambooHR, Mercer), adjusted "
+    "using published research on compensation, workload, and career development as attrition "
+    "drivers. They are disclosed assumptions, not independently published segment-level figures."
+)
+
+RF_IMPORTANCE = pd.DataFrame({
+    "Feature Label": ["Satisfaction Level","Number of Projects","Avg Monthly Hours",
+                      "Tenure (Years)","Last Evaluation Score","Work Accident",
+                      "Promotion (Last 5 Yrs)","Salary: Low","Salary: Medium"],
+    "Importance":    [0.312, 0.198, 0.176, 0.142, 0.098, 0.032, 0.021, 0.013, 0.008],
+}).sort_values("Importance", ascending=True)
+
+SHAP_DRIVERS = pd.DataFrame({
+    "Driver":      ["Satisfaction Level","Number of Projects","Avg Monthly Hours","Tenure",
+                    "Last Evaluation","Salary Band","Promotion Status","Work Accident"],
+    "Mean |SHAP|": [0.48, 0.31, 0.27, 0.21, 0.14, 0.11, 0.07, 0.03],
+    "Direction":   ["Low satisfaction raises risk","2 or 7 projects raises risk",
+                    "Extreme hours raises risk","Mid-tenure is highest risk",
+                    "Mixed signal","Low salary raises risk",
+                    "No promotion raises risk","Accident slightly lowers risk"]
+})
+
+STAT_DRIVERS = pd.DataFrame({
+    "Variable":     ["satisfaction_level","number_project","average_montly_hours",
+                     "time_spend_company","last_evaluation","salary",
+                     "promotion_last_5years","Work_accident"],
+    "Test":         ["Mann-Whitney U","Chi-Square","Mann-Whitney U","Mann-Whitney U",
+                     "Mann-Whitney U","Chi-Square","Chi-Square","Chi-Square"],
+    "p-value":      ["< 0.001"]*8,
+    "Effect Size":  [0.41, 0.38, 0.29, 0.24, 0.18, 0.17, 0.09, 0.04],
+    "Effect Label": ["Large","Large","Medium","Medium","Small","Small","Small","Negligible"],
+    "Significant":  ["Yes"]*8
+})
+
+COHORT_DATA = pd.DataFrame({
+    "Year":        [1,   2,   3,   4,   5,   6,   7,   8,   9,   10],
+    "Overall":     [100, 95,  88,  80,  65,  53,  48,  46,  45,  45],
+    "Low Salary":  [100, 92,  82,  72,  55,  42,  38,  37,  37,  37],
+    "Med Salary":  [100, 96,  90,  83,  70,  59,  54,  52,  51,  51],
+    "High Salary": [100, 99,  97,  95,  93,  91,  90,  90,  90,  90],
+})
+
+# ─────────────────────────────────────────────
+#  SIDEBAR
+# ─────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""<div class="sidebar-logo">
+        <h2>Alpha Manufacturing Solutions</h2>
+        <p>Meridian People Analytics Consulting</p>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("### Navigation")
+    page = st.radio("", [
+        "Executive Summary",
+        "Analytical Retention Views",
+        "Risk & Segment Drill-Down",
+        "Model Performance & Drivers",
+        "Retention Recommendations"
+    ], label_visibility="collapsed")
+
+    st.markdown("<hr style='border-color:#1e3a5f; margin:1.2rem 0;'>", unsafe_allow_html=True)
+    st.markdown("### Filters")
+
+    all_depts    = sorted(df["Department"].unique().tolist())
+    sel_depts    = st.multiselect("Department",   options=all_depts, default=all_depts)
+    sel_salaries = st.multiselect("Salary Band",  options=["low","medium","high"], default=["low","medium","high"])
+
+    # Tenure year slider
+    st.markdown("<div style='font-size:0.72rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#7fa8cc;margin-bottom:0.3rem;'>Tenure (Years)</div>", unsafe_allow_html=True)
+    tenure_min, tenure_max = st.slider("", min_value=2, max_value=10, value=(2, 10), label_visibility="collapsed")
+
+    # Work Accident toggle
+    st.markdown("<div style='font-size:0.72rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#7fa8cc;margin-bottom:0.3rem;margin-top:0.6rem;'>Work Accident</div>", unsafe_allow_html=True)
+    accident_opts = st.multiselect("", options=["No Accident","Had Accident"],
+                                   default=["No Accident","Had Accident"], label_visibility="collapsed")
+
+    # Risk tier filter
+    st.markdown("<div style='font-size:0.72rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#7fa8cc;margin-bottom:0.3rem;margin-top:0.6rem;'>Risk Tier</div>", unsafe_allow_html=True)
+    risk_opts = st.multiselect("", options=["High","Medium","Low"],
+                               default=["High","Medium","Low"], label_visibility="collapsed")
+
+    st.markdown("<hr style='border-color:#1e3a5f; margin:1.2rem 0;'>", unsafe_allow_html=True)
+    st.markdown("""<p style='font-size:0.67rem; color:#3d6278; line-height:1.6;'>
+    Engagement: Apr – Aug 2026<br>Meridian People Analytics Consulting<br><br>
+    <strong style='color:#5d8fad;'>Dataset: 14,999 employees</strong><br>
+    <span style='color:#2a5572;'>Baseline: 27% manufacturing avg<br>(2024–25 HR industry surveys)<br>Segment benchmarks: est. assumptions</span>
+    </p>""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
+#  FILTERED DATA
+# ─────────────────────────────────────────────
+accident_map = {"No Accident": 0, "Had Accident": 1}
+sel_accident = [accident_map[a] for a in accident_opts]
+
+fdf = df[
+    df["Department"].isin(sel_depts) &
+    df["salary"].isin(sel_salaries) &
+    df["time_spend_company"].between(tenure_min, tenure_max) &
+    df["Work_accident"].isin(sel_accident) &
+    df["risk_tier"].isin(risk_opts)
+]
+
+total     = len(fdf)
+left_ct   = int(fdf["left"].sum())
+stayed_ct = total - left_ct
+turnover  = round(left_ct / total * 100, 2) if total > 0 else 0
+retention = round(100 - turnover, 2)
+high_risk = len(fdf[fdf["risk_tier"] == "High"])
+avg_sat   = round(fdf["satisfaction_level"].mean(), 2) if total > 0 else 0
+
+# ─────────────────────────────────────────────
+#  SIDEBAR EXPORT (injected after fdf is ready)
+# ─────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("<hr style='border-color:#1e3a5f; margin:1rem 0;'>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style='font-size:0.72rem; font-weight:600; letter-spacing:0.08em;
+         text-transform:uppercase; color:#7fa8cc; margin-bottom:0.6rem;'>
+        Export Current View
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Build clean export dataframe with readable column names
+    export_df = fdf[[
+        "Department", "salary", "time_spend_company", "tenure_band",
+        "average_montly_hours", "workload_level", "number_project",
+        "satisfaction_level", "last_evaluation", "Work_accident",
+        "promotion_last_5years", "left", "status", "risk_tier", "risk_score"
+    ]].copy()
+
+    export_df.columns = [
+        "Department", "Salary Band", "Tenure (Years)", "Tenure Band",
+        "Avg Monthly Hours", "Workload Level", "Number of Projects",
+        "Satisfaction Level", "Last Evaluation", "Work Accident",
+        "Promoted Last 5 Yrs", "Left (1=Yes)", "Status", "Risk Tier", "Risk Score"
+    ]
+
+    export_buf = io.StringIO()
+    export_df.to_csv(export_buf, index=False)
+
+    st.download_button(
+        label=f"⬇️ Download {total:,} employees",
+        data=export_buf.getvalue(),
+        file_name=f"alpha_mfg_filtered_{total}_employees.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+    st.markdown(f"""
+    <div style='font-size:0.7rem; color:#3d6278; line-height:1.6; margin-top:0.4rem;'>
+        {left_ct:,} departed &nbsp;·&nbsp; {stayed_ct:,} active<br>
+        Turnover: {turnover}% &nbsp;·&nbsp; {high_risk:,} high risk<br>
+        <span style='color:#2a5572; font-style:italic;'>Reflects all active sidebar filters</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
+#  HELPERS
+# ─────────────────────────────────────────────
+PALETTE = ["#1a5276","#2980b9","#5dade2","#85c1e9","#aed6f1"]
+RED, ORANGE, GREEN = "#c0392b", "#d35400", "#1e8449"
+
+def chart_layout(fig, height=340):
+    fig.update_layout(
+        height=height, margin=dict(l=10, r=10, t=40, b=10),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="DM Sans", size=11, color="#4a4a4a"),
+        legend=dict(bgcolor="rgba(0,0,0,0)", borderwidth=0),
+        xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10)),
+        yaxis=dict(showgrid=True, gridcolor="#eaecee", zeroline=False, tickfont=dict(size=10)),
+    )
+    return fig
+
+def kpi(label, value, sub, color="primary"):
+    return f"""<div class="kpi-card {color}">
+        <div class="kpi-label">{label}</div>
+        <div class="kpi-value">{value}</div>
+        <div class="kpi-sub">{sub}</div></div>"""
+
+
+# ─────────────────────────────────────────────
+#  PERSISTENT KPI BANNER (all pages)
+# ─────────────────────────────────────────────
+turnover_color = "red" if turnover > INDUSTRY_BENCHMARK else ("orange" if turnover > 20 else "green")
+sat_color      = "red" if avg_sat < 0.50 else ("orange" if avg_sat < 0.60 else "green")
+risk_color     = "red" if high_risk > 2000 else ("orange" if high_risk > 1000 else "green")
+
+st.markdown(f"""
+<div class="kpi-banner">
+    <div class="banner-item">
+        <span class="banner-label">Total Employees</span>
+        <span class="banner-value blue">{total:,}</span>
+    </div>
+    <div class="banner-divider"></div>
+    <div class="banner-item">
+        <span class="banner-label">Employees Left</span>
+        <span class="banner-value red">{left_ct:,}</span>
+    </div>
+    <div class="banner-divider"></div>
+    <div class="banner-item">
+        <span class="banner-label">Turnover Rate</span>
+        <span class="banner-value {turnover_color}">{turnover}%</span>
+    </div>
+    <div class="banner-divider"></div>
+    <div class="banner-item">
+        <span class="banner-label">Retention Rate</span>
+        <span class="banner-value green">{retention}%</span>
+    </div>
+    <div class="banner-divider"></div>
+    <div class="banner-item">
+        <span class="banner-label">Avg Satisfaction</span>
+        <span class="banner-value {sat_color}">{avg_sat}</span>
+    </div>
+    <div class="banner-divider"></div>
+    <div class="banner-item">
+        <span class="banner-label">High Risk Employees</span>
+        <span class="banner-value {risk_color}">{high_risk:,}</span>
+    </div>
+    <div class="banner-divider"></div>
+    <div class="banner-item">
+        <span class="banner-label">Mfg. Benchmark</span>
+        <span class="banner-value blue">~27%</span>
+    </div>
+    <span class="banner-source">Baseline: 2024–25 Mfg. Industry Surveys · Segment benchmarks: est. assumptions</span>
+</div>
+""", unsafe_allow_html=True)
+
+# ── Persistent color legend ───────────────────────────────────────────────────
+st.markdown("""
+<div style="display:flex; align-items:center; gap:1.5rem; background:#ffffff;
+     border:1px solid #eaecee; border-radius:8px; padding:0.55rem 1.2rem;
+     margin-bottom:1.2rem; flex-wrap:wrap;">
+    <span style="font-size:0.68rem; font-weight:600; letter-spacing:0.08em;
+          text-transform:uppercase; color:#95a5a6; white-space:nowrap;">
+        Color Key
+    </span>
+    <div style="display:flex; align-items:center; gap:0.4rem;">
+        <div style="width:13px; height:13px; border-radius:3px; background:#c0392b;"></div>
+        <span style="font-size:0.78rem; color:#2c3e50;">
+            <b>Red</b> — Above benchmark / High risk
+        </span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.4rem;">
+        <div style="width:13px; height:13px; border-radius:3px; background:#d35400;"></div>
+        <span style="font-size:0.78rem; color:#2c3e50;">
+            <b>Orange</b> — Near benchmark / Caution
+        </span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.4rem;">
+        <div style="width:13px; height:13px; border-radius:3px; background:#1e8449;"></div>
+        <span style="font-size:0.78rem; color:#2c3e50;">
+            <b>Green</b> — Below benchmark / Healthy
+        </span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.4rem;">
+        <div style="width:13px; height:13px; border-radius:3px; background:#1a5276;"></div>
+        <span style="font-size:0.78rem; color:#2c3e50;">
+            <b>Blue</b> — Neutral / Categorical (no performance grading)
+        </span>
+    </div>
+    <span style="font-size:0.7rem; color:#bdc3c7; margin-left:auto; font-style:italic; white-space:nowrap;">
+        Applies to all charts across all pages
+    </span>
+</div>
+""", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════
+#  PAGE 1 — EXECUTIVE SUMMARY
+# ══════════════════════════════════════════════
+if page == "Executive Summary":
+    st.markdown("""<div class="page-header">
+        <div><h1>Executive KPI Summary</h1>
+        <p>Workforce retention overview · Alpha Manufacturing Solutions</p></div>
+        <div class="badge">CONFIDENTIAL · MERIDIAN ANALYTICS</div>
+    </div>""", unsafe_allow_html=True)
+
+    clr = "danger" if turnover > INDUSTRY_BENCHMARK else ("warning" if turnover > 20 else "success")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.markdown(kpi("Total Employees",  f"{total:,}",    "In selected filters",        "primary"), unsafe_allow_html=True)
+    with c2: st.markdown(kpi("Employees Left",   f"{left_ct:,}",  "Confirmed departures",       "danger"),  unsafe_allow_html=True)
+    with c3: st.markdown(kpi("Turnover Rate",    f"{turnover}%",  "Mfg. baseline benchmark: ~27%", clr),      unsafe_allow_html=True)
+    with c4: st.markdown(kpi("Retention Rate",   f"{retention}%", "Active workforce",            "success"), unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    top_dept = fdf.groupby("Department").apply(lambda x: x["left"].sum()/len(x)).idxmax()
+    top_rate = round(fdf[fdf["Department"]==top_dept]["left"].mean()*100, 1)
+
+    st.markdown(f"""<div class="insight-box">
+    📌 <strong>Key Finding:</strong> At <strong>{turnover}%</strong>, Alpha's overall turnover sits
+    just below the 2024–25 manufacturing industry baseline of <strong>~27%</strong> — suggesting
+    reasonable aggregate stability. However, turnover is heavily concentrated in specific segments.
+    The <strong>{top_dept}</strong> department leads at <strong>{top_rate}%</strong>, and mid-tenure
+    employees (40.69%), underloaded employees (36.35%), and employees with extreme project assignments
+    (up to 100%) all significantly exceed their respective segment benchmarks — revealing concentrated
+    structural risk that the overall rate masks.
+    </div>""", unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown('<div class="section-title">Turnover Rate by Department</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Ranked highest to lowest · segment-specific estimated benchmarks shown</div>', unsafe_allow_html=True)
+        dept_df = (fdf.groupby("Department")
+                   .apply(lambda x: round(x["left"].sum()/len(x)*100, 1))
+                   .reset_index(name="Turnover Rate (%)")
+                   .sort_values("Turnover Rate (%)", ascending=True))
+        dept_df["benchmark"] = dept_df["Department"].map(DEPT_BENCHMARKS).fillna(INDUSTRY_BENCHMARK)
+        dept_df["gap"] = dept_df["Turnover Rate (%)"] - dept_df["benchmark"]
+        colors = [RED if g > 0 else (ORANGE if g > -3 else GREEN) for g in dept_df["gap"]]
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=dept_df["Turnover Rate (%)"], y=dept_df["Department"],
+            orientation="h", marker_color=colors,
+            text=dept_df["Turnover Rate (%)"].apply(lambda x: f"{x}%"),
+            textposition="inside",
+            textfont=dict(color="white", size=10, family="DM Sans"),
+            name="Actual"))
+        fig.add_trace(go.Scatter(
+            x=dept_df["benchmark"], y=dept_df["Department"],
+            mode="markers",
+            marker=dict(symbol="line-ew", size=16, color="#e74c3c",
+                        line=dict(color="#e74c3c", width=3)),
+            name="Est. Benchmark",
+            hovertemplate="Est. Benchmark: %{x}%<extra></extra>"))
+        fig = chart_layout(fig, 400)
+        fig.update_layout(
+            yaxis=dict(showgrid=False),
+            xaxis=dict(range=[0, 42]),
+            legend=dict(orientation="h", y=1.08))
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.markdown('<div class="section-title">Turnover Rate by Salary Band</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Compensation level vs. attrition · segment-specific estimated benchmarks shown</div>', unsafe_allow_html=True)
+        sal_df = (fdf.groupby("salary")
+                  .apply(lambda x: round(x["left"].sum()/len(x)*100, 1))
+                  .reindex(["low","medium","high"]).reset_index(name="Turnover Rate (%)"))
+        sal_df["benchmark"] = sal_df["salary"].map(SAL_BENCHMARKS)
+        sal_df["salary_label"] = sal_df["salary"].str.capitalize()
+        sal_df["gap"] = sal_df["Turnover Rate (%)"] - sal_df["benchmark"]
+        sal_colors = [RED if g > 0 else (ORANGE if g > -3 else GREEN) for g in sal_df["gap"]]
+        fig2 = go.Figure()
+        fig2.add_trace(go.Bar(
+            x=sal_df["salary_label"], y=sal_df["Turnover Rate (%)"],
+            marker_color=sal_colors,
+            text=sal_df["Turnover Rate (%)"].apply(lambda x: f"{x}%"),
+            textposition="inside",
+            textfont=dict(color="white", size=11, family="DM Sans"),
+            width=0.45, name="Actual"))
+        fig2.add_trace(go.Scatter(
+            x=sal_df["salary_label"], y=sal_df["benchmark"],
+            mode="markers+text",
+            marker=dict(symbol="diamond", size=12, color="#e74c3c"),
+            text=sal_df["benchmark"].apply(lambda x: f"  {x}%"),
+            textposition="middle right",
+            textfont=dict(color="#e74c3c", size=9),
+            line=dict(color="#e74c3c", dash="dot", width=1.5),
+            name="Est. Benchmark"))
+        fig2 = chart_layout(fig2, 400)
+        fig2.update_layout(yaxis=dict(range=[0, 48]), legend=dict(orientation="h", y=1.08))
+        st.plotly_chart(fig2, use_container_width=True)
+
+    # Industry Benchmark Panel
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Industry Benchmark Comparison</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Alpha Manufacturing vs. estimated segment benchmarks · Baseline: 27% manufacturing avg (2024–25 HR industry surveys) · Segment adjustments: estimated assumptions based on published attrition research</div>', unsafe_allow_html=True)
+
+    col3, col4 = st.columns(2)
+    with col3:
+        for label, alpha_val, bench_val, status in BENCHMARKS:
+            badge = (f'<span class="benchmark-status-over">▲ Above benchmark ({bench_val})</span>'
+                     if status == "over" else
+                     f'<span class="benchmark-status-under">✓ Below benchmark ({bench_val})</span>')
+            st.markdown(f"""<div class="benchmark-row">
+                <span class="benchmark-label">{label}</span>
+                <div style="display:flex;align-items:center;gap:0.8rem;">
+                    <span class="benchmark-val">{alpha_val}</span>{badge}
+                </div></div>""", unsafe_allow_html=True)
+
+    with col4:
+        bm_labels = [b[0] for b in BENCHMARKS]
+        bm_alpha  = [float(b[1].replace("%","")) for b in BENCHMARKS]
+        bm_bench  = [float(b[2].replace("%","")) for b in BENCHMARKS]
+        bar_colors = [RED if a > b else (ORANGE if abs(a - b) < 3 else GREEN)
+                      for a, b in zip(bm_alpha, bm_bench)]
+        fig_bm = go.Figure()
+        fig_bm.add_trace(go.Bar(name="Alpha Manufacturing", x=bm_labels, y=bm_alpha,
+                                marker_color=bar_colors, opacity=0.9))
+        fig_bm.add_trace(go.Scatter(name="Est. Segment Benchmark",
+                                    x=bm_labels, y=bm_bench,
+                                    mode="markers+lines",
+                                    marker=dict(symbol="diamond", size=8, color="#e74c3c"),
+                                    line=dict(color="#e74c3c", dash="dot", width=1.5)))
+        fig_bm = chart_layout(fig_bm, 380)
+        fig_bm.update_layout(
+            xaxis=dict(tickangle=-30, tickfont=dict(size=8)),
+            yaxis=dict(title="Turnover Rate (%)", range=[0, 110]),
+            legend=dict(orientation="h", y=1.12))
+        st.plotly_chart(fig_bm, use_container_width=True)
+
+    st.markdown(f"""<div class="data-note">{BENCHMARK_DISCLAIMER}</div>""", unsafe_allow_html=True)
+
+    # Donut
+    st.markdown("<hr>", unsafe_allow_html=True)
+    col5, col6 = st.columns([1, 2])
+    with col5:
+        fig3 = go.Figure(go.Pie(
+            labels=["Active","Left"], values=[stayed_ct, left_ct],
+            hole=0.62, marker_colors=[PALETTE[0], RED],
+            textinfo="label+percent", textfont_size=11))
+        fig3.update_layout(
+            height=240, margin=dict(l=10,r=10,t=10,b=10),
+            paper_bgcolor="rgba(0,0,0,0)", showlegend=False,
+            annotations=[dict(text=f"{turnover}%<br><span style='font-size:10'>turnover</span>",
+                x=0.5, y=0.5, font_size=18, showarrow=False,
+                font=dict(family="DM Serif Display", color="#1a252f"))])
+        st.plotly_chart(fig3, use_container_width=True)
+    with col6:
+        summary = pd.DataFrame({
+            "Metric": ["Total Employees","Employees Left","Active Employees",
+                       "Turnover Rate","Retention Rate","Mfg. Baseline Benchmark","Avg Satisfaction"],
+            "Value":  [f"{total:,}", f"{left_ct:,}", f"{stayed_ct:,}",
+                       f"{turnover}%", f"{retention}%", "~27% (2024–25 mfg. surveys, est.)", str(avg_sat)]
+        })
+        st.dataframe(summary, hide_index=True, use_container_width=True, height=260)
+
+# ══════════════════════════════════════════════
+#  PAGE 2 — ANALYTICAL RETENTION VIEWS
+# ══════════════════════════════════════════════
+elif page == "Analytical Retention Views":
+    st.markdown("""<div class="page-header">
+        <div><h1>Analytical Retention Views</h1>
+        <p>Segmentation by tenure, workload, projects, promotion · satisfaction · cohort curves</p></div>
+        <div class="badge">SEGMENT ANALYSIS</div>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown(f"""<div class="insight-box">
+    📌 <strong>Analyst Note:</strong> Alpha's overall turnover (23.81%) sits below the 27% manufacturing
+    baseline. However, using segment-specific estimated benchmarks reveals the real story —
+    mid-tenure employees exceed their 30% benchmark at <strong>40.69%</strong>, employees with 2 or 7 projects
+    far exceed their 27% baseline at <strong>65.62% and 100%</strong>, and underloaded employees (36.35%)
+    significantly exceed their 25% estimated benchmark. Attrition peaks sharply at
+    <strong>year 5 (56.6%)</strong> before dropping to zero past year 7.
+    </div>""", unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    # ── Attrition by exact tenure year (new) ──
+    with col1:
+        st.markdown('<div class="section-title">Attrition Rate by Tenure Year</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Exact year-by-year turnover · peak at year 5 (56.6%) · est. benchmark: 27% baseline</div>', unsafe_allow_html=True)
+
+        tenure_yr = (fdf.groupby("time_spend_company")
+                     .apply(lambda x: round(x["left"].sum()/len(x)*100, 1) if len(x) > 0 else 0)
+                     .reset_index(name="Turnover Rate (%)"))
+        line_colors = [RED if r > INDUSTRY_BENCHMARK else (ORANGE if r > INDUSTRY_BENCHMARK * 0.85 else GREEN)
+                       for r in tenure_yr["Turnover Rate (%)"]]
+        fig_ty = go.Figure()
+        fig_ty.add_trace(go.Bar(
+            x=tenure_yr["time_spend_company"], y=tenure_yr["Turnover Rate (%)"],
+            marker_color=line_colors,
+            text=tenure_yr["Turnover Rate (%)"].apply(lambda x: f"{x}%"),
+            textposition="inside",
+            textfont=dict(color="white", size=9, family="DM Sans"),
+            name="Turnover Rate"))
+        fig_ty.add_hline(y=INDUSTRY_BENCHMARK, line_dash="dash", line_color="#e74c3c",
+                         annotation_text="Est. Baseline 27%", annotation_font_size=9,
+                         annotation_position="top right", annotation_font_color="#c0392b")
+        fig_ty = chart_layout(fig_ty, 320)
+        fig_ty.update_layout(
+            xaxis=dict(title="Years at Company", tickvals=tenure_yr["time_spend_company"].tolist()),
+            yaxis=dict(range=[0, 115], title="Turnover Rate (%)"),
+            showlegend=False)
+        st.plotly_chart(fig_ty, use_container_width=True)
+
+        st.markdown("""<div class="data-note">
+        <strong>📎 Data Note — Long Tenure (7+ yrs):</strong> Zero departures are recorded for employees
+        with 7, 8, or 10 years tenure (n=564). This likely reflects a genuine stability threshold —
+        employees who survive the mid-tenure attrition window become highly retained. It may also
+        reflect a snapshot limitation in the dataset. Interpret with appropriate context.
+        </div>""", unsafe_allow_html=True)
+
+    with col2:
+        st.markdown('<div class="section-title">Turnover by Workload Level</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Monthly hours bucketed into tiers · segment-specific estimated benchmarks shown</div>', unsafe_allow_html=True)
+        wl_order = ["Low (<160 hrs)","Moderate (160-220 hrs)","High (221+ hrs)"]
+        wl_df = (fdf.groupby("workload_level")
+                 .apply(lambda x: round(x["left"].sum()/len(x)*100, 1))
+                 .reindex(wl_order).reset_index(name="Turnover Rate (%)"))
+        wl_df["benchmark"] = wl_df["workload_level"].map(WORKLOAD_BENCHMARKS)
+        wl_df["gap"] = wl_df["Turnover Rate (%)"] - wl_df["benchmark"]
+        wl_colors = [RED if g > 0 else (ORANGE if g > -3 else GREEN) for g in wl_df["gap"]]
+        fig5 = go.Figure()
+        fig5.add_trace(go.Bar(x=wl_df["workload_level"], y=wl_df["Turnover Rate (%)"],
+            marker_color=wl_colors,
+            text=wl_df["Turnover Rate (%)"].apply(lambda x: f"{x}%"),
+            textposition="inside",
+            textfont=dict(color="white", size=10, family="DM Sans"),
+            width=0.4, name="Actual"))
+        fig5.add_trace(go.Scatter(x=wl_df["workload_level"], y=wl_df["benchmark"],
+            mode="markers+text",
+            marker=dict(symbol="diamond", size=12, color="#e74c3c"),
+            text=wl_df["benchmark"].apply(lambda x: f"Est: {x}%"),
+            textposition="top center",
+            textfont=dict(color="#c0392b", size=8),
+            name="Est. Benchmark"))
+        fig5 = chart_layout(fig5, 320)
+        fig5.update_layout(yaxis=dict(range=[0, 55]), legend=dict(orientation="h", y=1.12))
+        st.plotly_chart(fig5, use_container_width=True)
+
+    col3, col4 = st.columns(2)
+    with col3:
+        st.markdown('<div class="section-title">Turnover by Number of Projects</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Underload and overload both drive attrition · est. baseline 27% shown</div>', unsafe_allow_html=True)
+        proj_df = (fdf.groupby("number_project")
+                   .apply(lambda x: round(x["left"].sum()/len(x)*100, 1))
+                   .reset_index(name="Turnover Rate (%)"))
+        proj_df["benchmark"] = proj_df["number_project"].map(PROJECT_BENCHMARKS).fillna(INDUSTRY_BENCHMARK)
+        proj_df["label"] = proj_df["number_project"].astype(str) + " projects"
+        proj_df["gap"] = proj_df["Turnover Rate (%)"] - proj_df["benchmark"]
+        p_colors = [RED if g > 0 else (ORANGE if g > -3 else GREEN) for g in proj_df["gap"]]
+        fig6 = go.Figure()
+        fig6.add_trace(go.Bar(x=proj_df["label"], y=proj_df["Turnover Rate (%)"],
+            marker_color=p_colors,
+            text=proj_df["Turnover Rate (%)"].apply(lambda x: f"{x}%"),
+            textposition="inside",
+            textfont=dict(color="white", size=9, family="DM Sans"),
+            name="Actual"))
+        fig6.add_hline(y=INDUSTRY_BENCHMARK, line_dash="dash", line_color="#e74c3c",
+                       annotation_text="Est. Baseline 27%", annotation_font_size=9,
+                       annotation_position="top right", annotation_font_color="#c0392b")
+        fig6 = chart_layout(fig6, 320)
+        fig6.update_layout(yaxis=dict(range=[0, 115]), showlegend=False)
+        st.plotly_chart(fig6, use_container_width=True)
+
+    with col4:
+        st.markdown('<div class="section-title">Turnover by Promotion Status</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Promoted vs. not promoted · segment-specific estimated benchmarks shown</div>', unsafe_allow_html=True)
+        promo_df = (fdf.groupby("promoted_label")
+                    .apply(lambda x: round(x["left"].sum()/len(x)*100, 1))
+                    .reset_index(name="Turnover Rate (%)"))
+        promo_df["benchmark"] = promo_df["promoted_label"].map(PROMO_BENCHMARKS)
+        promo_df["gap"] = promo_df["Turnover Rate (%)"] - promo_df["benchmark"]
+        promo_colors = [RED if g > 0 else (ORANGE if g > -3 else GREEN) for g in promo_df["gap"]]
+        fig7 = go.Figure()
+        fig7.add_trace(go.Bar(
+            x=promo_df["promoted_label"], y=promo_df["Turnover Rate (%)"],
+            marker_color=promo_colors,
+            text=promo_df["Turnover Rate (%)"].apply(lambda x: f"{x}%"),
+            textposition="inside",
+            textfont=dict(color="white", size=10, family="DM Sans"),
+            width=0.35, name="Actual"))
+        fig7.add_trace(go.Scatter(
+            x=promo_df["promoted_label"], y=promo_df["benchmark"],
+            mode="markers+text",
+            marker=dict(symbol="diamond", size=12, color="#e74c3c"),
+            text=promo_df["benchmark"].apply(lambda x: f"Est: {x}%"),
+            textposition="top center",
+            textfont=dict(color="#c0392b", size=8),
+            name="Est. Benchmark"))
+        fig7 = chart_layout(fig7, 320)
+        fig7.update_layout(yaxis=dict(range=[0, 40]), legend=dict(orientation="h", y=1.12))
+        st.plotly_chart(fig7, use_container_width=True)
+
+    # ── Avg Satisfaction by Department (new) ──
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Average Satisfaction Score by Department</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Mean satisfaction level (0–1 scale) · lower scores correlate strongly with higher attrition</div>', unsafe_allow_html=True)
+
+    sat_dept = (fdf.groupby("Department")
+                .agg(avg_sat=("satisfaction_level","mean"),
+                     turnover=("left","mean"))
+                .reset_index())
+    sat_dept["avg_sat"]  = sat_dept["avg_sat"].round(3)
+    sat_dept["turnover"] = (sat_dept["turnover"] * 100).round(1)
+    sat_dept = sat_dept.sort_values("avg_sat", ascending=True)
+
+    sat_colors = [RED if s < 0.55 else (ORANGE if s < 0.62 else GREEN) for s in sat_dept["avg_sat"]]
+
+    fig_sat = go.Figure()
+    fig_sat.add_trace(go.Bar(
+        x=sat_dept["avg_sat"], y=sat_dept["Department"],
+        orientation="h", marker_color=sat_colors,
+        text=sat_dept["avg_sat"].apply(lambda x: f"{x:.3f}"),
+        textposition="outside", name="Avg Satisfaction"))
+    fig_sat.add_vline(x=fdf["satisfaction_level"].mean(), line_dash="dot",
+                      line_color="#2980b9", annotation_text=f"Company avg ({fdf['satisfaction_level'].mean():.3f})",
+                      annotation_font_size=9, annotation_position="top right",
+                      annotation_font_color="#2980b9")
+    fig_sat = chart_layout(fig_sat, 360)
+    fig_sat.update_layout(
+        yaxis=dict(showgrid=False),
+        xaxis=dict(range=[0, 0.85], title="Average Satisfaction Score"),
+        showlegend=False)
+    st.plotly_chart(fig_sat, use_container_width=True)
+
+    # ── Work Accident Panel (new) ──
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Work Accident Impact on Attrition</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Employees who experienced a workplace accident vs. those who did not</div>', unsafe_allow_html=True)
+
+    col5, col6, col7 = st.columns(3)
+
+    acc_df = (fdf.groupby("accident_label")
+              .agg(total=("left","count"), left=("left","sum"))
+              .reset_index())
+    acc_df["turnover"] = (acc_df["left"] / acc_df["total"] * 100).round(1)
+
+    no_acc  = acc_df[acc_df["accident_label"]=="No Accident"]
+    had_acc = acc_df[acc_df["accident_label"]=="Had Accident"]
+
+    no_acc_rate  = float(no_acc["turnover"].values[0])  if len(no_acc)  > 0 else 0
+    had_acc_rate = float(had_acc["turnover"].values[0]) if len(had_acc) > 0 else 0
+    acc_count    = int(fdf["Work_accident"].sum())
+
+    with col5:
+        st.markdown(kpi("No Accident Turnover",  f"{no_acc_rate}%",
+                        f"{int(no_acc['total'].values[0]):,} employees" if len(no_acc)>0 else "N/A",
+                        "danger" if no_acc_rate > INDUSTRY_BENCHMARK else "success"), unsafe_allow_html=True)
+    with col6:
+        st.markdown(kpi("Accident Turnover",     f"{had_acc_rate}%",
+                        f"{acc_count:,} employees affected",
+                        "danger" if had_acc_rate > INDUSTRY_BENCHMARK else "success"), unsafe_allow_html=True)
+    with col7:
+        delta = round(no_acc_rate - had_acc_rate, 1)
+        st.markdown(kpi("Difference",            f"{delta}pp",
+                        "Non-accident employees leave more",
+                        "warning"), unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    fig_acc = go.Figure(go.Bar(
+        x=acc_df["accident_label"], y=acc_df["turnover"],
+        marker_color=[PALETTE[0], GREEN],
+        text=acc_df["turnover"].apply(lambda x: f"{x}%"),
+        textposition="outside", width=0.35))
+    fig_acc = chart_layout(fig_acc, 280)
+    fig_acc.add_hline(y=INDUSTRY_BENCHMARK, line_dash="dash", line_color="#e74c3c",
+                      annotation_text="Est. Baseline 27%", annotation_font_size=9,
+                      annotation_position="top right", annotation_font_color="#c0392b")
+    fig_acc.update_layout(yaxis=dict(range=[0, 50]))
+    st.plotly_chart(fig_acc, use_container_width=True)
+
+    st.markdown("""<div class="insight-box green">
+    ✅ <strong>Notable Finding:</strong> Employees who experienced a work accident have a
+    <em>lower</em> turnover rate (7.79%) than those who did not (26.52%). This is a statistically
+    counterintuitive result and may reflect post-incident retention programs, increased management
+    attention, or compensation structures for injured employees. This warrants further investigation.
+    </div>""", unsafe_allow_html=True)
+
+    # ── Cohort Retention Curves ──
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Cohort Retention Curves by Salary Band</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Survival-style retention over time · steepest drop occurs years 3–5 · Source: Cohort_Retention_Curves.ipynb</div>', unsafe_allow_html=True)
+
+    fig_c = go.Figure()
+    for col_name, color, dash in [("Overall", PALETTE[0], "solid"), ("Low Salary", RED, "dash"),
+                                   ("Med Salary", ORANGE, "dot"), ("High Salary", GREEN, "dashdot")]:
+        fig_c.add_trace(go.Scatter(
+            x=COHORT_DATA["Year"], y=COHORT_DATA[col_name],
+            name=col_name, mode="lines+markers",
+            line=dict(color=color, width=2.5, dash=dash), marker=dict(size=6)))
+    fig_c.add_vrect(x0=3, x1=6, fillcolor="rgba(192,57,43,0.07)", line_width=0,
+                    annotation_text="Critical attrition window (yrs 3–6)",
+                    annotation_position="top left", annotation_font_size=10,
+                    annotation_font_color="#c0392b")
+    fig_c = chart_layout(fig_c, 360)
+    fig_c.update_layout(
+        xaxis=dict(title="Years at Company", dtick=1),
+        yaxis=dict(title="% Employees Retained", range=[30, 105]),
+        legend=dict(orientation="h", y=1.12))
+    st.plotly_chart(fig_c, use_container_width=True)
+
+    # ── Heatmap ──
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Attrition Heatmap — Department × Tenure Band</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Turnover rate (%) by intersection · darker = higher risk</div>', unsafe_allow_html=True)
+
+    heat_df = (fdf.groupby(["Department","tenure_band"])
+               .apply(lambda x: round(x["left"].sum()/len(x)*100, 1))
+               .reset_index(name="Turnover Rate (%)"))
+    heat_pivot = heat_df.pivot(index="Department", columns="tenure_band", values="Turnover Rate (%)")
+    col_order  = [c for c in ["Early (0-3 yrs)","Mid (4-6 yrs)","Long (7+ yrs)"] if c in heat_pivot.columns]
+    heat_pivot = heat_pivot[col_order]
+
+    fig8 = go.Figure(go.Heatmap(
+        z=heat_pivot.values, x=heat_pivot.columns.tolist(), y=heat_pivot.index.tolist(),
+        colorscale=[[0,"#eaf4fb"],[0.4,"#5dade2"],[0.7,"#d35400"],[1.0,"#c0392b"]],
+        text=[[f"{v:.1f}%" if not pd.isna(v) else "N/A" for v in row] for row in heat_pivot.values],
+        texttemplate="%{text}", textfont=dict(size=11, color="white"),
+        showscale=True, colorbar=dict(title="Turnover %", tickfont=dict(size=10))))
+    fig8.update_layout(height=320, margin=dict(l=10,r=10,t=20,b=10),
+                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                       font=dict(family="DM Sans", size=11))
+    st.plotly_chart(fig8, use_container_width=True)
+
+# ══════════════════════════════════════════════
+#  PAGE 3 — RISK & SEGMENT DRILL-DOWN
+# ══════════════════════════════════════════════
+elif page == "Risk & Segment Drill-Down":
+    st.markdown("""<div class="page-header">
+        <div><h1>Risk & Segment Drill-Down</h1>
+        <p>Predictive risk indicators · high-risk profiling · statistical significance · exports</p></div>
+        <div class="badge">RISK ANALYSIS</div>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div class="insight-box">
+    📌 <strong>Risk Model Note:</strong> Risk score derived from satisfaction level (40%), project extremity (30%),
+    salary band (20%), promotion gap (10%) — aligned with Meridian standardized methodology.
+    All drivers confirmed significant at p &lt; 0.001. Use sidebar filters to isolate specific segments.
+    </div>""", unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns(3)
+    med_risk = len(fdf[fdf["risk_tier"]=="Medium"])
+    low_risk = len(fdf[fdf["risk_tier"]=="Low"])
+    with c1: st.markdown(kpi("High Risk Employees",   f"{high_risk:,}", "Risk score ≥ 60",  "danger"),  unsafe_allow_html=True)
+    with c2: st.markdown(kpi("Medium Risk Employees", f"{med_risk:,}",  "Risk score 35–59", "warning"), unsafe_allow_html=True)
+    with c3: st.markdown(kpi("Low Risk Employees",    f"{low_risk:,}",  "Risk score < 35",  "success"), unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown('<div class="section-title">Satisfaction vs. Last Evaluation</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Colored by employee status · 2,000 employee sample</div>', unsafe_allow_html=True)
+        sample = fdf.sample(min(2000, len(fdf)), random_state=42)
+        fig9 = px.scatter(sample, x="satisfaction_level", y="last_evaluation",
+            color="status", color_discrete_map={"Left": RED, "Active": PALETTE[0]},
+            opacity=0.55,
+            labels={"satisfaction_level":"Satisfaction Level","last_evaluation":"Last Evaluation Score"})
+        fig9 = chart_layout(fig9, 360)
+        fig9.update_traces(marker=dict(size=5))
+        st.plotly_chart(fig9, use_container_width=True)
+
+    with col2:
+        st.markdown('<div class="section-title">Monthly Hours Distribution</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Left vs. active employees · workload overlap</div>', unsafe_allow_html=True)
+        fig10 = go.Figure()
+        fig10.add_trace(go.Histogram(x=fdf[fdf["left"]==1]["average_montly_hours"],
+            name="Left", marker_color=RED, opacity=0.7, nbinsx=30))
+        fig10.add_trace(go.Histogram(x=fdf[fdf["left"]==0]["average_montly_hours"],
+            name="Active", marker_color=PALETTE[0], opacity=0.7, nbinsx=30))
+        fig10.update_layout(barmode="overlay")
+        fig10 = chart_layout(fig10, 360)
+        fig10.update_layout(xaxis_title="Avg Monthly Hours", yaxis_title="Count",
+                             legend=dict(orientation="h", y=1.08))
+        st.plotly_chart(fig10, use_container_width=True)
+
+    col3, col4 = st.columns(2)
+    with col3:
+        st.markdown('<div class="section-title">High-Risk Count by Department</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Employees with risk score ≥ 60</div>', unsafe_allow_html=True)
+        risk_dept = (fdf[fdf["risk_tier"]=="High"].groupby("Department").size()
+                     .reset_index(name="High Risk Count")
+                     .sort_values("High Risk Count", ascending=True))
+        fig11 = go.Figure(go.Bar(
+            x=risk_dept["High Risk Count"], y=risk_dept["Department"],
+            orientation="h", marker_color=RED,
+            text=risk_dept["High Risk Count"], textposition="outside"))
+        fig11 = chart_layout(fig11, 340)
+        fig11.update_layout(yaxis=dict(showgrid=False))
+        st.plotly_chart(fig11, use_container_width=True)
+
+    with col4:
+        st.markdown('<div class="section-title">Risk Tier Distribution</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">High / Medium / Low across filtered population</div>', unsafe_allow_html=True)
+        rc = fdf["risk_tier"].value_counts().reindex(["High","Medium","Low"]).fillna(0)
+        fig12 = go.Figure(go.Pie(
+            labels=rc.index.tolist(), values=rc.values.tolist(),
+            hole=0.55, marker_colors=[RED, ORANGE, GREEN],
+            textinfo="label+percent", textfont_size=11))
+        fig12.update_layout(height=340, margin=dict(l=10,r=10,t=20,b=10),
+                             paper_bgcolor="rgba(0,0,0,0)", showlegend=False)
+        st.plotly_chart(fig12, use_container_width=True)
+
+    # Statistical Driver Table
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Statistical Driver Significance Testing</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Mann-Whitney U (continuous) · Chi-Square (categorical) · Source: Meridian Epic 3 Analysis</div>', unsafe_allow_html=True)
+    st.dataframe(STAT_DRIVERS, hide_index=True, use_container_width=True, height=310)
+
+    # High-risk table with color badges
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">High-Risk Employee Segment Table</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Risk score ≥ 60 · sorted by risk score · exportable below</div>', unsafe_allow_html=True)
+
+    risk_table = fdf[fdf["risk_tier"]=="High"][[
+        "Department","salary","tenure_band","workload_level",
+        "satisfaction_level","last_evaluation","number_project",
+        "promoted_label","risk_score","status"
+    ]].copy()
+    risk_table.columns = ["Department","Salary","Tenure Band","Workload",
+                           "Satisfaction","Last Eval","# Projects","Promotion","Risk Score","Status"]
+    risk_table["Satisfaction"] = risk_table["Satisfaction"].round(2)
+    risk_table["Last Eval"]    = risk_table["Last Eval"].round(2)
+    risk_table = risk_table.sort_values("Risk Score", ascending=False).reset_index(drop=True)
+
+    def color_risk(val):
+        if val >= 70:  return "background-color: #fdecea; color: #c0392b; font-weight: 600;"
+        elif val >= 60: return "background-color: #fef9e7; color: #d35400; font-weight: 600;"
+        return ""
+
+    def color_status(val):
+        if val == "Left":   return "color: #c0392b; font-weight: 600;"
+        return "color: #1e8449; font-weight: 500;"
+
+    def color_sat(val):
+        if val < 0.30: return "background-color: #fdecea; color: #c0392b;"
+        elif val < 0.50: return "background-color: #fef9e7; color: #d35400;"
+        return ""
+
+    styled = (risk_table.style
+              .applymap(color_risk,    subset=["Risk Score"])
+              .applymap(color_status,  subset=["Status"])
+              .applymap(color_sat,     subset=["Satisfaction"]))
+
+    st.dataframe(styled, hide_index=True, use_container_width=True, height=320)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    buf = io.StringIO()
+    risk_table.to_csv(buf, index=False)
+    st.download_button("⬇️  Export High-Risk Segment to CSV",
+                       buf.getvalue(), "alpha_high_risk_employees.csv", "text/csv")
+
+# ══════════════════════════════════════════════
+#  PAGE 4 — MODEL PERFORMANCE & DRIVERS
+# ══════════════════════════════════════════════
+elif page == "Model Performance & Drivers":
+    st.markdown("""<div class="page-header">
+        <div><h1>Model Performance & Feature Drivers</h1>
+        <p>Random Forest · XGBoost · Logistic Regression · SHAP explainability · fairness testing</p></div>
+        <div class="badge">PREDICTIVE ANALYTICS</div>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div class="insight-box">
+    📌 <strong>Model Summary:</strong> Three models were trained and evaluated on a held-out 20% test set
+    (n=3,000) using the same feature set as the Meridian analytical workflow. <strong>Gradient Boosting</strong>
+    achieved the highest AUC (0.994), closely followed by <strong>Random Forest</strong> (0.992).
+    Logistic Regression (0.826) serves as the interpretable baseline. ROC curves below are computed
+    from actual model predictions on the held-out test set.
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown('<div class="section-title">Model Performance Metrics</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Trained on 80% of hr_data.csv · evaluated on held-out 20% test set · random_state=42</div>', unsafe_allow_html=True)
+
+    mc1, mc2, mc3 = st.columns(3)
+    with mc1:
+        st.markdown("""<div class="model-metric-card rf">
+            <div class="model-metric-value">0.992</div>
+            <div class="model-metric-label">ROC-AUC</div>
+            <div class="model-metric-model">🌲 Random Forest (n_estimators=200)</div>
+            <hr style="margin:0.7rem 0;border-color:#eaecee;">
+            <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:#555;">
+                <span>Precision: <strong>0.994</strong></span>
+                <span>Recall: <strong>0.966</strong></span>
+                <span>F1: <strong>0.980</strong></span>
+            </div></div>""", unsafe_allow_html=True)
+    with mc2:
+        st.markdown("""<div class="model-metric-card xgb">
+            <div class="model-metric-value">0.994</div>
+            <div class="model-metric-label">ROC-AUC</div>
+            <div class="model-metric-model">⚡ Gradient Boosting (n_estimators=200)</div>
+            <hr style="margin:0.7rem 0;border-color:#eaecee;">
+            <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:#555;">
+                <span>Precision: <strong>0.971</strong></span>
+                <span>Recall: <strong>0.945</strong></span>
+                <span>F1: <strong>0.958</strong></span>
+            </div></div>""", unsafe_allow_html=True)
+    with mc3:
+        st.markdown("""<div class="model-metric-card lr">
+            <div class="model-metric-value">0.826</div>
+            <div class="model-metric-label">ROC-AUC</div>
+            <div class="model-metric-model">📈 Logistic Regression — Baseline</div>
+            <hr style="margin:0.7rem 0;border-color:#eaecee;">
+            <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:#555;">
+                <span>Precision: <strong>0.624</strong></span>
+                <span>Recall: <strong>0.360</strong></span>
+                <span>F1: <strong>0.456</strong></span>
+            </div></div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown('<div class="section-title">Random Forest Feature Importance</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Mean decrease in impurity · Source: epic3_random_forest_importance.csv</div>', unsafe_allow_html=True)
+        fi_colors = [RED if imp >= 0.30 else (ORANGE if imp >= 0.15 else GREEN)
+                     for imp in RF_IMPORTANCE["Importance"]]
+        fig_fi = go.Figure(go.Bar(
+            x=RF_IMPORTANCE["Importance"], y=RF_IMPORTANCE["Feature Label"],
+            orientation="h", marker_color=fi_colors,
+            text=RF_IMPORTANCE["Importance"].apply(lambda x: f"{x:.3f}"),
+            textposition="outside"))
+        fig_fi = chart_layout(fig_fi, 380)
+        fig_fi.update_layout(yaxis=dict(showgrid=False),
+                             xaxis=dict(range=[0, 0.40], title="Importance Score"))
+        st.plotly_chart(fig_fi, use_container_width=True)
+
+    with col2:
+        st.markdown('<div class="section-title">SHAP Mean |Value| — Driver Impact</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Average absolute SHAP contribution · Source: SHAP Explainability Framework</div>', unsafe_allow_html=True)
+        shap_s = SHAP_DRIVERS.sort_values("Mean |SHAP|", ascending=True)
+        shap_c = [RED if v >= 0.40 else (ORANGE if v >= 0.20 else GREEN)
+                  for v in shap_s["Mean |SHAP|"]]
+        fig_shap = go.Figure(go.Bar(
+            x=shap_s["Mean |SHAP|"], y=shap_s["Driver"],
+            orientation="h", marker_color=shap_c,
+            text=shap_s["Mean |SHAP|"].apply(lambda x: f"{x:.2f}"),
+            textposition="outside"))
+        fig_shap = chart_layout(fig_shap, 380)
+        fig_shap.update_layout(yaxis=dict(showgrid=False),
+                               xaxis=dict(range=[0, 0.60], title="Mean |SHAP Value|"))
+        st.plotly_chart(fig_shap, use_container_width=True)
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.markdown('<div class="section-title">ROC Curve Comparison</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Computed from actual model predictions on held-out test set (20%, n≈3,000)</div>', unsafe_allow_html=True)
+
+        # Real FPR/TPR arrays computed from sklearn roc_curve on held-out test set
+        ROC_DATA = {
+            "Random Forest":       {"fpr": [0.0, 0.0, 0.0, 0.0, 0.0004, 0.0004, 0.0004, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0009, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0013, 0.0022, 0.0022, 0.0022, 0.0022, 0.0022, 0.0048, 0.0048, 0.0048, 0.0057, 0.0057, 0.0079, 0.0079, 0.0079, 0.0087, 0.0087, 0.0096, 0.0096, 0.0096, 0.0109, 0.0109, 0.0114, 0.0114, 0.0114, 0.0131, 0.0131, 0.014, 0.014, 0.0153, 0.0153, 0.0153, 0.0171, 0.0171, 0.0171, 0.0171, 0.0171, 0.0179, 0.0179, 0.0197, 0.0197, 0.0197, 0.0223, 0.0223, 0.0232, 0.0232, 0.0232, 0.0245, 0.0245, 0.0262, 0.0262, 0.0262, 0.0284, 0.0284, 0.0293, 0.0293, 0.0341, 0.0341, 0.0341, 0.0354, 0.0354, 0.0385, 0.0385, 0.0385, 0.0451, 0.0451, 0.0486, 0.0486, 0.0486, 0.0499, 0.0499, 0.0529, 0.0529, 0.0529, 0.0582, 0.0582, 0.0612, 0.0612, 0.0612, 0.0656, 0.0656, 0.0709, 0.0709, 0.0709, 0.0757, 0.0757, 0.0836, 0.0836, 0.0892, 0.0892, 0.0892, 0.0962, 0.0962, 0.1019, 0.1019, 0.1019, 0.1137, 0.1137, 0.1229, 0.1229, 0.1229, 0.1317, 0.1317, 0.1487, 0.1487, 0.1487, 0.1645, 0.1645, 0.185, 0.185, 0.185, 0.2047, 0.2047, 0.2323, 0.2323, 0.2738, 0.2738, 0.2738, 0.3145, 0.3145, 0.3832, 0.3832, 0.3832, 0.5166, 0.5166, 1.0, 1.0], "tpr": [0.0, 0.0, 0.6653, 0.6653, 0.7563, 0.7563, 0.7563, 0.7983, 0.7983, 0.8151, 0.8151, 0.8151, 0.8333, 0.8333, 0.8445, 0.8445, 0.8627, 0.8627, 0.8627, 0.8697, 0.8697, 0.8796, 0.8796, 0.8796, 0.8824, 0.8824, 0.8936, 0.8936, 0.8936, 0.8964, 0.8964, 0.9006, 0.9006, 0.9006, 0.902, 0.902, 0.9048, 0.9048, 0.9048, 0.9076, 0.9076, 0.9132, 0.9132, 0.9146, 0.9146, 0.9146, 0.9174, 0.9174, 0.923, 0.923, 0.923, 0.9244, 0.9244, 0.93, 0.93, 0.93, 0.9342, 0.9342, 0.9398, 0.9398, 0.9398, 0.9524, 0.9524, 0.9566, 0.9566, 0.9566, 0.9594, 0.9594, 0.9608, 0.9608, 0.9608, 0.9636, 0.9636, 0.9664, 0.9664, 0.9664, 0.9664, 0.9664, 0.9678, 0.9678, 0.9678, 0.9678, 0.9678, 0.9678, 0.9678, 0.9678, 0.9678, 0.9678, 0.9678, 0.9678, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.9706, 0.972, 0.972, 0.972, 0.972, 0.972, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9734, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9776, 0.9776, 0.9776, 0.9776, 0.9776, 0.9776, 0.9776, 0.9776, 0.9776, 0.9776, 0.979, 0.979, 0.979, 0.979, 0.979, 0.979, 0.979, 0.979, 0.9804, 0.9804, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9818, 0.9832, 0.9832, 0.9832, 0.986, 0.986, 0.986, 0.986, 0.9902, 0.9902, 0.9902, 0.993, 0.993, 0.993, 0.993, 0.993, 0.9958, 0.9958, 1.0, 1.0], "auc": 0.992, "color": GREEN},
+            "Gradient Boosting":   {"fpr": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0009, 0.0013, 0.0013, 0.0022, 0.0026, 0.0031, 0.0031, 0.0035, 0.0039, 0.0044, 0.0044, 0.0052, 0.0061, 0.0074, 0.0101, 0.0109, 0.0131, 0.0136, 0.0136, 0.0144, 0.0153, 0.0162, 0.0184, 0.021, 0.0219, 0.0227, 0.0227, 0.028, 0.0367, 0.0381, 0.0381, 0.0407, 0.0621, 0.0652, 0.0669, 0.0906, 0.0993, 0.1002, 0.1019, 0.1032, 0.1037, 0.1159, 0.1203, 0.1225, 0.1255, 0.1264, 0.1304, 0.1356, 0.1448, 0.1623, 0.1737, 0.1912, 0.1925, 0.1942, 0.2165, 0.227, 0.2297, 0.2402, 0.2782, 0.2795, 0.3062, 0.3062, 0.3272, 0.3311, 0.3447, 0.3491, 0.3543, 0.4038, 0.4064, 0.4073, 0.4103, 0.4733, 0.4764, 0.4869, 0.5057, 0.5293, 0.5302, 0.5389, 0.5411, 0.5678, 0.5744, 0.6273, 0.629, 0.647, 0.6479, 0.6601, 0.6759, 0.6798, 0.6824, 0.6969, 0.7003, 0.7056, 0.7065, 0.7428, 0.7493, 0.7515, 0.7572, 0.762, 0.7633, 0.7948, 0.7957, 0.801, 0.8049, 0.8298, 0.8705, 0.8863, 0.8968, 0.8981, 0.899, 0.9628, 0.9794, 0.9926, 0.9956, 1.0], "tpr": [0.0, 0.0056, 0.007, 0.0154, 0.0448, 0.0518, 0.0602, 0.0784, 0.091, 0.1064, 0.1092, 0.1387, 0.1457, 0.1541, 0.1723, 0.1919, 0.2255, 0.2353, 0.2381, 0.2479, 0.2619, 0.2689, 0.2731, 0.2801, 0.3081, 0.3207, 0.3235, 0.3361, 0.3445, 0.3543, 0.3571, 0.3725, 0.381, 0.388, 0.3908, 0.4034, 0.4132, 0.4258, 0.4272, 0.4496, 0.4636, 0.465, 0.507, 0.5112, 0.521, 0.5224, 0.5266, 0.5336, 0.5406, 0.5434, 0.5532, 0.5644, 0.5714, 0.5728, 0.5784, 0.5854, 0.5924, 0.5938, 0.6106, 0.6176, 0.6232, 0.6275, 0.6345, 0.6415, 0.6471, 0.6499, 0.6569, 0.6723, 0.6849, 0.6947, 0.7003, 0.7255, 0.7325, 0.7353, 0.7717, 0.7829, 0.7843, 0.7871, 0.8025, 0.8137, 0.8263, 0.8305, 0.8375, 0.8543, 0.8599, 0.8697, 0.8782, 0.8796, 0.902, 0.9118, 0.9146, 0.923, 0.9244, 0.9258, 0.9314, 0.9384, 0.9412, 0.9426, 0.944, 0.9454, 0.9454, 0.9482, 0.9496, 0.951, 0.9538, 0.958, 0.9594, 0.9608, 0.9608, 0.9622, 0.9636, 0.965, 0.9678, 0.9678, 0.9692, 0.9706, 0.972, 0.9734, 0.9748, 0.9776, 0.9776, 0.9804, 0.9818, 0.9818, 0.9818, 0.9818, 0.9832, 0.9832, 0.9846, 0.986, 0.9874, 0.9874, 0.9888, 0.9902, 0.9916, 0.9916, 0.9916, 0.9916, 0.9916, 0.9916, 0.9916, 0.9916, 0.9916, 0.9916, 0.9916, 0.993, 0.9944, 0.9958, 0.9958, 0.9958, 0.9958, 0.9958, 0.9958, 0.9972, 0.9972, 0.9972, 0.9972, 0.9972, 0.9972, 0.9972, 0.9986, 0.9986, 0.9986, 0.9986, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "auc": 0.994, "color": ORANGE},
+            "Logistic Regression": {"fpr": [0.0, 0.0039, 0.0057, 0.0079, 0.0092, 0.0105, 0.0118, 0.0127, 0.014, 0.0144, 0.0162, 0.0184, 0.0192, 0.0201, 0.0214, 0.0223, 0.0227, 0.0236, 0.0249, 0.0258, 0.0284, 0.0293, 0.0315, 0.0328, 0.0341, 0.0354, 0.0367, 0.0402, 0.0411, 0.0424, 0.0468, 0.0486, 0.0503, 0.0525, 0.0534, 0.0538, 0.0551, 0.056, 0.056, 0.0564, 0.0573, 0.0591, 0.0604, 0.0617, 0.0626, 0.0643, 0.0652, 0.0656, 0.0669, 0.0678, 0.0687, 0.0696, 0.0709, 0.0713, 0.0735, 0.0744, 0.0757, 0.077, 0.0779, 0.0783, 0.0809, 0.0814, 0.0831, 0.0866, 0.0892, 0.0906, 0.0914, 0.0949, 0.0971, 0.0997, 0.1019, 0.1045, 0.1072, 0.1124, 0.1142, 0.1207, 0.1242, 0.1264, 0.129, 0.1356, 0.1369, 0.1409, 0.1422, 0.1452, 0.1479, 0.15, 0.1509, 0.1527, 0.1562, 0.1575, 0.1601, 0.1623, 0.164, 0.1662, 0.1689, 0.1719, 0.1741, 0.1759, 0.1789, 0.1798, 0.185, 0.1868, 0.1903, 0.1942, 0.1955, 0.199, 0.2003, 0.2021, 0.2052, 0.2108, 0.2113, 0.2157, 0.217, 0.2192, 0.2244, 0.2301, 0.2327, 0.2353, 0.241, 0.2467, 0.2515, 0.2572, 0.259, 0.2638, 0.2673, 0.2738, 0.2791, 0.2839, 0.2848, 0.2861, 0.2896, 0.3005, 0.304, 0.308, 0.3132, 0.3167, 0.3198, 0.3246, 0.3307, 0.3342, 0.339, 0.3425, 0.3517, 0.3591, 0.367, 0.3696, 0.3758, 0.378, 0.3793, 0.3854, 0.3968, 0.4003, 0.4055, 0.4108, 0.4199, 0.4248, 0.4269, 0.4339, 0.4423, 0.4514, 0.4554, 0.4619, 0.4781, 0.4873, 0.4934, 0.4996, 0.5022, 0.5162, 0.5245, 0.5324, 0.5564, 0.5604, 0.563, 0.5739, 0.5774, 0.5836, 0.5936, 0.6041, 0.6098, 0.6124, 0.6168, 0.6225, 0.6273, 0.6601, 0.6754, 0.6859, 0.692, 0.7165, 0.7765, 0.7953, 0.8023, 0.8351, 0.8526, 0.8609, 0.8898, 0.9121, 0.9287, 0.9541, 0.9659, 1.0], "tpr": [0.0, 0.0014, 0.0084, 0.0126, 0.0154, 0.0182, 0.0308, 0.042, 0.0588, 0.0658, 0.07, 0.0756, 0.0798, 0.084, 0.0938, 0.0994, 0.1078, 0.1275, 0.1345, 0.1387, 0.1499, 0.1541, 0.1569, 0.1639, 0.1681, 0.1737, 0.1807, 0.1919, 0.1975, 0.2003, 0.2045, 0.2115, 0.2171, 0.2227, 0.2353, 0.2423, 0.2479, 0.2521, 0.2661, 0.2759, 0.2815, 0.2843, 0.2913, 0.3011, 0.3151, 0.3305, 0.3375, 0.3459, 0.3529, 0.3599, 0.3697, 0.3754, 0.3824, 0.4062, 0.4174, 0.43, 0.4356, 0.444, 0.4552, 0.4678, 0.4818, 0.4888, 0.4944, 0.4986, 0.5042, 0.5084, 0.514, 0.5168, 0.521, 0.5266, 0.5294, 0.5322, 0.5378, 0.5406, 0.5434, 0.5476, 0.5504, 0.556, 0.5616, 0.5686, 0.5742, 0.5798, 0.5882, 0.591, 0.5952, 0.6036, 0.6106, 0.6162, 0.6261, 0.6303, 0.6345, 0.6415, 0.6457, 0.6485, 0.6541, 0.6583, 0.6625, 0.6667, 0.6709, 0.6765, 0.6779, 0.6821, 0.6891, 0.6947, 0.6975, 0.7059, 0.7115, 0.7143, 0.7171, 0.7213, 0.7283, 0.7325, 0.7367, 0.7395, 0.7423, 0.7451, 0.7479, 0.7521, 0.7549, 0.7577, 0.7605, 0.7675, 0.7731, 0.7745, 0.7773, 0.7801, 0.7815, 0.7843, 0.7899, 0.7955, 0.7997, 0.8025, 0.8039, 0.8095, 0.8137, 0.8179, 0.8221, 0.8277, 0.8291, 0.8305, 0.8333, 0.8361, 0.8375, 0.8417, 0.8459, 0.8487, 0.8557, 0.8585, 0.8627, 0.8683, 0.8768, 0.8824, 0.8852, 0.8894, 0.8922, 0.8964, 0.9034, 0.9062, 0.909, 0.9118, 0.9146, 0.9174, 0.9188, 0.9202, 0.923, 0.9272, 0.9286, 0.9314, 0.9328, 0.9356, 0.9398, 0.9426, 0.944, 0.9482, 0.9496, 0.9524, 0.9538, 0.9566, 0.9594, 0.9622, 0.9636, 0.9664, 0.9678, 0.9706, 0.9748, 0.9762, 0.9776, 0.979, 0.9804, 0.9818, 0.9832, 0.986, 0.9902, 0.9916, 0.993, 0.9958, 0.9972, 1.0, 1.0, 1.0], "auc": 0.826, "color": PALETTE[1]},
+        }
+
+        fig_roc = go.Figure()
+        for name, d in ROC_DATA.items():
+            fig_roc.add_trace(go.Scatter(
+                x=d["fpr"], y=d["tpr"],
+                name=f"{name} (AUC={d['auc']})",
+                mode="lines", line=dict(color=d["color"], width=2.5)))
+        fig_roc.add_trace(go.Scatter(
+            x=[0, 1], y=[0, 1], name="Random Baseline",
+            mode="lines", line=dict(color="#bdc3c7", dash="dash", width=1.5)))
+        fig_roc = chart_layout(fig_roc, 400)
+        fig_roc.update_layout(
+            xaxis=dict(title="False Positive Rate", range=[0, 1]),
+            yaxis=dict(title="True Positive Rate", range=[0, 1.02]),
+            legend=dict(orientation="h", y=-0.22, font=dict(size=10)))
+        st.plotly_chart(fig_roc, use_container_width=True)
+
+    with col4:
+        st.markdown('<div class="section-title">SHAP Driver Direction Summary</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">How each feature influences predicted attrition risk</div>', unsafe_allow_html=True)
+        shap_display = SHAP_DRIVERS[["Driver","Mean |SHAP|","Direction"]].sort_values("Mean |SHAP|", ascending=False)
+        st.dataframe(shap_display, hide_index=True, use_container_width=True, height=380)
+
+    # Fairness Testing
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Fairness & Bias Testing Results</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Source: Fairness and Bias Testing - Group 4.pdf · Data6520_SHAP+_Fairness_and_Bias_Testing.ipynb</div>', unsafe_allow_html=True)
+
+    fair_data = pd.DataFrame({
+        "Segment":      ["Department","Salary Band","Tenure Band","Work Accident"],
+        "Test Applied": ["Demographic Parity","Equalized Odds","Calibration Check","Demographic Parity"],
+        "Result":       ["Passed","Passed","Passed","Passed"],
+        "Notes":        ["No significant disparity across departments",
+                         "Recall balanced across salary tiers",
+                         "Predictions calibrated across tenure groups",
+                         "No bias detected toward accident history"]
+    })
+    st.dataframe(fair_data, hide_index=True, use_container_width=True, height=200)
+
+    st.markdown("""<div class="insight-box green">
+    ✅ <strong>Fairness Conclusion:</strong> All models passed the Meridian bias review framework.
+    No protected or proxy attributes introduced systematic prediction disparities across department,
+    salary band, tenure, or accident history. Models are cleared for operational deployment.
+    </div>""", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════
+#  PAGE 5 — RETENTION RECOMMENDATIONS
+# ══════════════════════════════════════════════
+elif page == "Retention Recommendations":
+    st.markdown("""<div class="page-header">
+        <div><h1>Retention Recommendations</h1>
+        <p>Actionable strategies for Alpha Manufacturing Solutions · prioritized by attrition impact</p></div>
+        <div class="badge">STRATEGIC ADVISORY</div>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div class="insight-box">
+    📌 <strong>Advisory Note:</strong> The following recommendations are derived directly from the
+    attrition analysis conducted by Meridian People Analytics Consulting. Each recommendation is
+    linked to a specific at-risk employee segment identified in the data, ranked by the size and
+    severity of the attrition problem it addresses. Implementation priority is based on both
+    turnover rate and population size — segments with large headcounts and high turnover rates
+    represent the greatest cost and operational risk to Alpha Manufacturing Solutions.
+    </div>""", unsafe_allow_html=True)
+
+    # ── Priority Rankings ──────────────────────────────────────────────────
+    def rec_card(rank, priority_color, priority_label, segment, rate, benchmark,
+                 population, headline, problem, recommendation, quick_win):
+        color_map = {"CRITICAL": "#c0392b", "HIGH": "#d35400", "MODERATE": "#1a5276"}
+        bg_map    = {"CRITICAL": "#fdecea", "HIGH": "#fef9e7", "MODERATE": "#eaf4fb"}
+        c = color_map.get(priority_label, "#1a5276")
+        bg = bg_map.get(priority_label, "#eaf4fb")
+        return f"""
+        <div style="background:#ffffff; border-radius:10px; padding:1.4rem 1.6rem;
+             box-shadow:0 2px 12px rgba(0,0,0,0.06); margin-bottom:1.2rem;
+             border-left:5px solid {c};">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:0.5rem;">
+                <div style="display:flex; align-items:center; gap:0.8rem;">
+                    <div style="background:{c}; color:white; border-radius:50%; width:32px; height:32px;
+                         display:flex; align-items:center; justify-content:center;
+                         font-family:'DM Serif Display',serif; font-size:1rem; flex-shrink:0;">
+                        {rank}
+                    </div>
+                    <div>
+                        <div style="font-family:'DM Serif Display',serif; font-size:1.05rem;
+                             color:#1a252f; line-height:1.3;">{headline}</div>
+                        <div style="font-size:0.72rem; color:#7f8c8d; margin-top:0.15rem;">
+                            Segment: <strong>{segment}</strong>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center;">
+                    <span style="background:{bg}; color:{c}; padding:3px 10px; border-radius:12px;
+                          font-size:0.72rem; font-weight:700; border:1px solid {c};">
+                        {priority_label}
+                    </span>
+                    <span style="background:#f7f9fc; color:#2c3e50; padding:3px 10px; border-radius:12px;
+                          font-size:0.72rem; font-weight:600; border:1px solid #eaecee;">
+                        Turnover: {rate}
+                    </span>
+                    <span style="background:#f7f9fc; color:#7f8c8d; padding:3px 10px; border-radius:12px;
+                          font-size:0.72rem; border:1px solid #eaecee;">
+                        Est. Benchmark: {benchmark}
+                    </span>
+                    <span style="background:#f7f9fc; color:#2c3e50; padding:3px 10px; border-radius:12px;
+                          font-size:0.72rem; border:1px solid #eaecee;">
+                        n={population}
+                    </span>
+                </div>
+            </div>
+            <hr style="border:none; border-top:1px solid #eaecee; margin:0.9rem 0;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div>
+                    <div style="font-size:0.68rem; font-weight:700; letter-spacing:0.08em;
+                         text-transform:uppercase; color:#95a5a6; margin-bottom:0.35rem;">
+                        Problem
+                    </div>
+                    <div style="font-size:0.83rem; color:#2c3e50; line-height:1.6;">{problem}</div>
+                </div>
+                <div>
+                    <div style="font-size:0.68rem; font-weight:700; letter-spacing:0.08em;
+                         text-transform:uppercase; color:#95a5a6; margin-bottom:0.35rem;">
+                        Recommendation
+                    </div>
+                    <div style="font-size:0.83rem; color:#2c3e50; line-height:1.6;">{recommendation}</div>
+                </div>
+            </div>
+            <div style="margin-top:0.9rem; background:{bg}; border-radius:6px;
+                 padding:0.55rem 0.9rem; font-size:0.78rem; color:{c}; line-height:1.5;">
+                <strong>⚡ Quick Win:</strong> {quick_win}
+            </div>
+        </div>"""
+
+    st.markdown('<div class="section-title">Priority Retention Interventions</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Ranked by severity and population size · sourced from Meridian attrition analysis · aligned with RFP Section 3.4</div>', unsafe_allow_html=True)
+
+    st.markdown(rec_card(
+        rank=1, priority_label="CRITICAL", priority_color="#c0392b",
+        segment="Employees with 2 Projects Assigned",
+        rate="65.62%", benchmark="~27%", population="2,388",
+        headline="Eliminate Extreme Underload — 2-Project Employees",
+        problem="Employees assigned only 2 projects leave at 65.62% — nearly 2.5x the manufacturing benchmark. "
+                "This is the single highest turnover rate in the dataset outside of extreme overload. "
+                "Underutilization drives disengagement and signals to employees that their role is at risk.",
+        recommendation="Audit all employees currently assigned 2 projects and immediately assess whether "
+                       "additional work can be allocated. Target the 3–5 project sweet spot where turnover "
+                       "drops to 1.78–22.17%. Implement a workload monitoring process in SAP ERP to flag "
+                       "employees below the optimal project threshold.",
+        quick_win="Identify the 2,388 employees in this group and schedule manager check-ins within 30 days "
+                  "to assess engagement and redistribute workload where possible."
+    ), unsafe_allow_html=True)
+
+    st.markdown(rec_card(
+        rank=2, priority_label="CRITICAL", priority_color="#c0392b",
+        segment="Employees with 7 Projects Assigned",
+        rate="100%", benchmark="~27%", population="256",
+        headline="Immediately Address Extreme Overload — 7-Project Employees",
+        problem="Every single employee assigned 7 projects has left the company — a 100% turnover rate. "
+                "This is not a retention risk, it is a retention failure. Extreme overload is causing "
+                "complete burnout and total attrition in this cohort.",
+        recommendation="Implement a hard cap on project assignments. No employee should be assigned more "
+                       "than 5–6 projects without explicit managerial sign-off and a retention review. "
+                       "Use SAP ERP to create workload alerts that trigger HR intervention when an "
+                       "employee exceeds 6 project assignments.",
+        quick_win="This group is already gone — prevent recurrence by adding a project cap policy immediately "
+                  "before the next hiring cycle replenishes these roles."
+    ), unsafe_allow_html=True)
+
+    st.markdown(rec_card(
+        rank=3, priority_label="CRITICAL", priority_color="#c0392b",
+        segment="Mid-Tenure Employees (4–6 Years)",
+        rate="40.69%", benchmark="~30%", population="4,748",
+        headline="Address Career Stagnation in the Mid-Tenure Window",
+        problem="Mid-tenure employees turn over at 40.69% — the most critical cohort by population size. "
+                "With 4,748 employees in this band and nearly 1 in 2 leaving, this represents the largest "
+                "single source of attrition cost at Alpha. Research confirms this is driven by unmet "
+                "advancement expectations and role stagnation at years 4–6.",
+        recommendation="Introduce formal career pathing for employees approaching year 4. Create visible "
+                       "progression milestones, lateral development opportunities, and a structured "
+                       "promotion review process. Promotion data shows promoted employees leave at only "
+                       "5.96% — making this the single highest-ROI retention lever available.",
+        quick_win="Launch stay interviews for all employees in years 4–5 tenure within 60 days. "
+                  "Ask directly: what would make you stay for 3 more years?"
+    ), unsafe_allow_html=True)
+
+    st.markdown(rec_card(
+        rank=4, priority_label="CRITICAL", priority_color="#c0392b",
+        segment="Low Workload Employees (<160 hrs/month)",
+        rate="36.35%", benchmark="~25%", population="4,204",
+        headline="Reduce Underutilization-Driven Attrition",
+        problem="Low-workload employees leave at 36.35% — significantly above their 25% estimated benchmark. "
+                "Combined with the 2-project finding, underutilization is one of the most overlooked "
+                "drivers of attrition at Alpha. Employees who feel their skills are not being used "
+                "actively seek roles elsewhere.",
+        recommendation="Identify low-workload employees in SAP ERP using monthly hours data. "
+                       "Implement structured development programs, cross-training initiatives, and "
+                       "stretch assignments to increase engagement. Consider whether roles in this "
+                       "cohort are appropriately scoped.",
+        quick_win="Run a utilization report in SAP to identify employees averaging under 160 hours/month "
+                  "for 3+ consecutive months and flag them for manager review."
+    ), unsafe_allow_html=True)
+
+    st.markdown(rec_card(
+        rank=5, priority_label="HIGH", priority_color="#d35400",
+        segment="Low Salary Employees",
+        rate="29.69%", benchmark="~32%", population="7,316",
+        headline="Develop a Compensation Progression Strategy for Low-Salary Employees",
+        problem="Low-salary employees make up the largest segment (7,316 employees) and turn over at 29.69%. "
+                "While this is just below the estimated benchmark for this group, it represents the highest "
+                "absolute volume of departures in the dataset — 2,172 employees. "
+                "Compensation dissatisfaction is the #1 documented voluntary exit driver per Mercer.",
+        recommendation="Develop a transparent salary progression framework with defined bands and timelines. "
+                       "Even modest pay increases tied to tenure milestones can significantly reduce "
+                       "voluntary exits. High-salary employees leave at only 6.63% — demonstrating the "
+                       "direct ROI of compensation investment.",
+        quick_win="Identify low-salary employees who have been in role for 3+ years with no salary change "
+                  "and prioritize them for the next compensation review cycle."
+    ), unsafe_allow_html=True)
+
+    st.markdown(rec_card(
+        rank=6, priority_label="HIGH", priority_color="#d35400",
+        segment="Unpromoted Employees (Last 5 Years)",
+        rate="24.20%", benchmark="~29%", population="14,680",
+        headline="Expand Promotion Opportunities and Career Visibility",
+        problem="99.5% of all employees who left had not been promoted in the last 5 years. "
+                "Promoted employees leave at just 5.96% vs 24.20% for unpromoted employees — "
+                "a 4x difference. The promotion pipeline is severely constrained: only 319 of "
+                "14,999 employees received a promotion, suggesting advancement opportunities are "
+                "far too limited relative to workforce size.",
+        recommendation="Expand the definition of advancement beyond formal promotion. Introduce lateral "
+                       "moves, title progressions, team lead designations, and project ownership "
+                       "opportunities. Set a target that at least 5–8% of employees receive some "
+                       "form of career advancement recognition per year.",
+        quick_win="Audit how many employees have gone 5+ years without any advancement event and "
+                  "identify the top performers in this group for immediate recognition or progression."
+    ), unsafe_allow_html=True)
+
+    st.markdown(rec_card(
+        rank=7, priority_label="HIGH", priority_color="#d35400",
+        segment="HR and Accounting Departments",
+        rate="29.09% / 26.60%", benchmark="~30%", population="739 / 767",
+        headline="Address Administrative Function Burnout",
+        problem="HR (29.09%) and Accounting (26.60%) are the two highest-turnover departments. "
+                "Both approach or meet their estimated benchmarks, indicating structural burnout "
+                "common in administrative roles. These departments support the entire organization "
+                "— attrition here has an outsized operational impact.",
+        recommendation="Conduct targeted engagement surveys in HR and Accounting to identify specific "
+                       "pain points. Review workload distribution, tooling, and team size relative "
+                       "to company scale. Consider whether automation or additional headcount can "
+                       "reduce administrative burden.",
+        quick_win="Schedule department-level listening sessions in HR and Accounting within 45 days "
+                  "to surface the top 3 retention pain points from employees directly."
+    ), unsafe_allow_html=True)
+
+    st.markdown(rec_card(
+        rank=8, priority_label="MODERATE", priority_color="#1a5276",
+        segment="6-Project Employees",
+        rate="55.79%", benchmark="~27%", population="1,174",
+        headline="Monitor and Cap High Project Loads Before They Become Critical",
+        problem="Employees with 6 projects leave at 55.79% — more than double the benchmark. "
+                "This group is one step below the 100% turnover seen at 7 projects and represents "
+                "a leading indicator of the overload crisis.",
+        recommendation="Treat 6-project assignment as a trigger for automatic HR review. "
+                       "Implement a 30-day check-in for any employee reaching 6 projects. "
+                       "Use this as an early warning system before employees reach the point "
+                       "of no return seen in the 7-project cohort.",
+        quick_win="Add a flag in SAP ERP that automatically notifies HR when any employee "
+                  "is assigned a 6th concurrent project."
+    ), unsafe_allow_html=True)
+
+    # ── Summary Priority Matrix ────────────────────────────────────────────
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Intervention Priority Matrix</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">All at-risk segments ranked by turnover rate · color coded by priority level</div>', unsafe_allow_html=True)
+
+    matrix_data = pd.DataFrame({
+        "Segment":             ["7 Projects", "2 Projects", "Mid-Tenure (4-6 yrs)",
+                                "6 Projects", "Low Workload", "HR Dept",
+                                "Low Salary", "High Workload", "Accounting Dept",
+                                "Not Promoted", "5 Projects", "Sales Dept",
+                                "Technical Dept", "Support Dept"],
+        "Turnover Rate":       ["100.0%", "65.62%", "40.69%", "55.79%", "36.35%",
+                                "29.09%", "29.69%", "30.72%", "26.60%", "24.20%",
+                                "22.17%", "24.49%", "25.62%", "24.90%"],
+        "Est. Benchmark":      ["27%", "27%", "30%", "27%", "25%", "30%", "32%",
+                                "32%", "30%", "29%", "25%", "29%", "26%", "29%"],
+        "Population":          ["256", "2,388", "4,748", "1,174", "4,204", "739",
+                                "7,316", "5,967", "767", "14,680", "2,761",
+                                "4,140", "2,720", "2,229"],
+        "Priority":            ["CRITICAL", "CRITICAL", "CRITICAL", "CRITICAL", "CRITICAL",
+                                "HIGH", "HIGH", "HIGH", "HIGH", "HIGH",
+                                "MODERATE", "MODERATE", "MODERATE", "MODERATE"],
+        "Primary Driver":      ["Extreme overload", "Extreme underload", "Career stagnation",
+                                "Overload onset", "Underutilization", "Admin burnout",
+                                "Compensation", "Burnout", "Admin burnout",
+                                "No advancement", "Elevated load", "Target pressure",
+                                "Talent competition", "Client-facing pressure"],
+    })
+
+    def color_priority(val):
+        if val == "CRITICAL": return "background-color:#fdecea; color:#c0392b; font-weight:700;"
+        elif val == "HIGH":   return "background-color:#fef9e7; color:#d35400; font-weight:700;"
+        else:                 return "background-color:#eaf4fb; color:#1a5276; font-weight:600;"
+
+    def color_rate(val):
+        try:
+            v = float(val.replace("%",""))
+            if v >= 40:   return "color:#c0392b; font-weight:700;"
+            elif v >= 27: return "color:#d35400; font-weight:600;"
+            else:         return "color:#1e8449; font-weight:600;"
+        except: return ""
+
+    styled_matrix = (matrix_data.style
+                     .applymap(color_priority, subset=["Priority"])
+                     .applymap(color_rate, subset=["Turnover Rate"]))
+
+    st.dataframe(styled_matrix, hide_index=True, use_container_width=True, height=530)
+
+    # ── Implementation Roadmap ─────────────────────────────────────────────
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Suggested Implementation Roadmap</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Phased approach aligned with RFP Section 3.4 · Implementation Strategy</div>', unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("""
+        <div style="background:#fdecea; border-radius:10px; padding:1.2rem 1.4rem;
+             border-top:4px solid #c0392b; height:100%;">
+            <div style="font-family:'DM Serif Display',serif; font-size:1rem;
+                 color:#c0392b; margin-bottom:0.8rem;">Phase 1 — Immediate (0–30 Days)</div>
+            <div style="font-size:0.8rem; color:#2c3e50; line-height:1.8;">
+                ✦ Manager check-ins for all 2-project employees<br>
+                ✦ Hard cap policy on 7-project assignments<br>
+                ✦ SAP ERP flag for 6+ project assignments<br>
+                ✦ Utilization report for &lt;160 hrs/month employees<br>
+                ✦ Stay interviews for years 4–5 tenure cohort
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div style="background:#fef9e7; border-radius:10px; padding:1.2rem 1.4rem;
+             border-top:4px solid #d35400; height:100%;">
+            <div style="font-family:'DM Serif Display',serif; font-size:1rem;
+                 color:#d35400; margin-bottom:0.8rem;">Phase 2 — Short-Term (30–90 Days)</div>
+            <div style="font-size:0.8rem; color:#2c3e50; line-height:1.8;">
+                ✦ Launch career pathing framework for mid-tenure<br>
+                ✦ Department listening sessions in HR & Accounting<br>
+                ✦ Compensation review for 3+ year low-salary employees<br>
+                ✦ Cross-training program for underutilized employees<br>
+                ✦ Promotion pipeline audit and expansion plan
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+        <div style="background:#eaf4fb; border-radius:10px; padding:1.2rem 1.4rem;
+             border-top:4px solid #1a5276; height:100%;">
+            <div style="font-family:'DM Serif Display',serif; font-size:1rem;
+                 color:#1a5276; margin-bottom:0.8rem;">Phase 3 — Strategic (90–180 Days)</div>
+            <div style="font-size:0.8rem; color:#2c3e50; line-height:1.8;">
+                ✦ Implement formal salary band progression framework<br>
+                ✦ Deploy workload monitoring dashboard in SAP ERP<br>
+                ✦ Quarterly stay interview cadence across all depts<br>
+                ✦ Annual advancement target (5–8% of workforce)<br>
+                ✦ HR leadership training on retention analytics usage
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""<div class="insight-box green">
+    ✅ <strong>Expected Impact:</strong> Based on the attrition analysis, addressing the top 4 critical
+    segments alone — 2-project underload, 7-project overload, mid-tenure stagnation, and low workload
+    disengagement — could reduce overall attrition by an estimated 8–12 percentage points. At Alpha's
+    current scale of 14,999 employees, each 1% reduction in turnover represents approximately
+    150 employees retained, reducing hiring and training costs significantly.
+    </div>""", unsafe_allow_html=True)
