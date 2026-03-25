@@ -544,7 +544,7 @@ if page == "Executive Summary":
     st.markdown("""<div class="page-header">
         <div><h1>Executive KPI Summary</h1>
         <p>Workforce retention overview · Alpha Manufacturing Solutions</p></div>
-        <div class="badge">CONFIDENTIAL · MERIDIAN ANALYTICS</div>
+        <div class="badge">CONFIDENTIAL</div>
     </div>""", unsafe_allow_html=True)
 
     clr = "danger" if turnover > INDUSTRY_BENCHMARK else ("warning" if turnover > 20 else "success")
